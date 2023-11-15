@@ -16,9 +16,9 @@ running = True
 clock = pygame.time.Clock()
 dt = 0
 tilesize = 4
-mean = 60
-dungeon_height = 600
-dungeon_width = 600
+mean = 50
+dungeon_height = 1240
+dungeon_width = 768
 dungeon_array = []
 new_array = []
 #Dungeon Creation Logic
@@ -109,7 +109,7 @@ def reduceDungeon(room_array, room_mean):
 def triangulateDungeon(A):
     points = []
     reduceDungeon(A, mean)
-    for room in A:
+    for room in new_array:
         points.append([room[0] + room[2] / 2, room[1] + room[3] / 2]) 
 
     tris = Delaunay(points)
