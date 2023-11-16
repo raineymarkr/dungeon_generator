@@ -7,18 +7,24 @@ from scipy.spatial import Delaunay
 pygame.init()
 
 #Screen Setup
-screen = pygame.display.set_mode((1024, 768))
+screen = pygame.display.set_mode((1000, 1000))
 player_pos = pygame.Vector2(screen.get_width() / 2, screen.get_height() /2 )
 centerx = screen.get_width() / 2
 centery = screen.get_height() / 2
+
+#generation variables
+tilesize = 4
+mean = 40
+stdev = 30
+room_count = 90
+radius = 30
+dungeon_height = 800 
+dungeon_width = 800
+
 #Main Game Loop
 running = True
 clock = pygame.time.Clock()
 dt = 0
-tilesize = 4
-mean = 50
-dungeon_height = 1240
-dungeon_width = 768
 dungeon_array = []
 new_array = []
 #Dungeon Creation Logic
@@ -58,44 +64,42 @@ def generateDungeon(radius, room_mean, room_std, room_count):
 def printDungeon(dungeonArray, allArray):
     moveRooms(dungeon_array, mean)  
     screen.fill((0, 0, 0))  # Clear screen
-    for room in allArray:
-        pygame.draw.rect(screen, 'yellow', pygame.Rect(room[0], room[1], room[2], room[3]))
+    #for room in allArray:
+        #pygame.draw.rect(screen, 'yellow', pygame.Rect(room[0], room[1], room[2], room[3]))
     for room in dungeonArray:
         pygame.draw.rect(screen, 'blue', pygame.Rect(room[0], room[1], room[2], room[3]))
 
 def moveRooms(room_array, room_mean):
     any_room_moved = False
     for i, room in enumerate(room_array): 
-        room_loc = pygame.Vector2(room[0], room[1])
-        room_size = [room[2], room[3]]
-        room_rect = pygame.Rect(room_loc.x, room_loc.y, room_size[0], room_size[1])
+        room_rect = pygame.Rect(room[0], room[1], room[2], room[3])
         
         for j, other_room in enumerate(room_array):
             if i != j:
-                other_loc = pygame.Vector2(other_room[0], other_room[1])
-                other_size = pygame.Vector2(other_room[2], other_room[3])
-                other_rect = pygame.Rect(other_loc.x, other_loc.y, other_size.x, other_size.y)
+                other_rect = pygame.Rect(other_room[0], other_room[1], other_room[2], other_room[3])
                 
                 if room_rect.colliderect(other_rect):
                     overlap = room_rect.clip(other_rect)
-                    if overlap.width < overlap.height:
-                        #horiz
-                        if room_loc.x < other_loc.x:
-                            room[0] -= overlap.width
-                        else:
-                            room[0] += overlap.width
+                    move_x = overlap.width if room_rect.width > overlap.width else 0
+                    move_y = overlap.height if room_rect.height > overlap.height else 0
+
+                    # Adjust position to resolve overlap
+                    if room_rect.x < other_rect.x:
+                        room[0] -= move_x
                     else:
-                        #vert
-                        if room_loc.y < other_loc.y:
-                            room[1] -= overlap.height
-                        else:
-                            room[1] += overlap.height
-             # Check if any room has moved
-            if room[0] != room_loc.x or room[1] != room_loc.y:
-                any_room_moved = True
-    # Round positions to align with the grid
-    room[0] = roundm(room[0], tilesize)
-    room[1] = roundm(room[1], tilesize)
+                        room[0] += move_x
+
+                    if room_rect.y < other_rect.y:
+                        room[1] -= move_y
+                    else:
+                        room[1] += move_y
+
+                    any_room_moved = True
+
+        # Boundary checks
+        room[0] = max(150, min(room[0], dungeon_width - room[2] + 100))
+        room[1] = max(150, min(room[1],  dungeon_height - room[3] + 100))
+
     return any_room_moved
 
 def reduceDungeon(room_array, room_mean):
@@ -103,7 +107,7 @@ def reduceDungeon(room_array, room_mean):
         width = room[2]
         height = room[3]
         roomPos = pygame.Vector2(room[0], room[1])
-        if (width >= 1.1*room_mean and height >= 1.1*room_mean):
+        if (width >= 1.2 * room_mean and height >=  1.2 * room_mean):
                 new_array.append(pygame.draw.rect(screen, 'blue', pygame.Rect(roomPos.x,roomPos.y, width, height)))
 
 def triangulateDungeon(A):
@@ -206,12 +210,61 @@ def addBack(mst, all, percentage):
     # Combine MST and selected non-MST edges
     return mst + edges_to_add_back
 
+hallways = []  # Global list to store hallways
+
+def addHalls(mst, dungeon):
+    global hallways
+    hallways.clear()
+    for edge in mst:
+        room1, room2 = edge  # Assuming each edge is a tuple (room1, room2)
+        
+        # Get the centers of the rooms
+        x_center1, y_center1 = (dungeon[room1][0] + dungeon[room1][2] // 2, 
+                                dungeon[room1][1] + dungeon[room1][3] // 2)
+        x_center2, y_center2 = (dungeon[room2][0] + dungeon[room2][2] // 2, 
+                                dungeon[room2][1] + dungeon[room2][3] // 2)
+        # Draw line between centers
+        if(abs(y_center1 - y_center2) >= mean and abs(y_center1 - y_center2) < 200):
+            hallway1 = {'start': (x_center1, y_center1), 'end': (x_center1, y_center2), 'width': 10}
+            hallway2 = {'start': (x_center2, y_center2), 'end': (x_center2, y_center1), 'width': 10}
+            hallways.append(hallway1)
+            hallways.append(hallway2)
+            pygame.draw.line(screen, 'blue', hallway1['start'], hallway1['end'], hallway1['width'])
+            pygame.draw.line(screen, 'blue', hallway2['start'], hallway2['end'], hallway2['width'])
+        if (abs(x_center1 - x_center2) >= mean and abs(x_center1 - x_center2) < 200):
+            hallway1 = {'start': (x_center1, y_center1), 'end': (x_center2, y_center1), 'width': 10}
+            hallway2 = {'start': (x_center2, y_center2), 'end': (x_center1, y_center2), 'width': 10}
+            hallways.append(hallway1)
+            hallways.append(hallway2)
+            pygame.draw.line(screen, 'blue', hallway1['start'], hallway1['end'], hallway1['width'])
+            pygame.draw.line(screen, 'blue', hallway2['start'], hallway2['end'], hallway2['width'])
+        if(abs(x_center1 - x_center2) <= mean) or (abs(y_center1 - y_center2) >= mean):
+            hallway = {'start': (x_center1, y_center1), 'end': (x_center1, y_center2), 'width': 10}
+            hallway = {'start': (x_center2, y_center2), 'end': (x_center2, y_center1), 'width': 10}
+            hallways.append(hallway)
+            pygame.draw.line(screen, 'blue', hallway['start'], hallway['end'], hallway['width'])
+
+def reAddCollidingRooms(all_rooms, hallways, dungeon_array):
+    for room in all_rooms:
+        if room not in dungeon_array:
+            room_rect = pygame.Rect(room[0], room[1], room[2], room[3])
+            for hallway in hallways:
+                start, end, width = hallway['start'], hallway['end'], hallway['width']
+                hallway_rect = pygame.Rect(min(start[0], end[0]), min(start[1], end[1]), abs(start[0] - end[0]) + width, abs(start[1] - end[1]) + width)
+
+                if hallway_rect.colliderect(room_rect):
+                    dungeon_array.append(room)
+                    break  # No need to check other hallways for this room
+
+
+
+
 def drawMST(screen, points, mst):
     for edge in mst:
         pygame.draw.line(screen, 'green', points[edge[0]], points[edge[1]], 1)    
 
 
-generateDungeon(100, mean, mean-10, 100)
+generateDungeon(radius, mean, stdev, room_count)
 rooms_finalized = False
 mst = []
 points = []
@@ -250,13 +303,17 @@ while running:
             points, tris = triangulateDungeon(dungeon_array)
             edges = createGraph(tris, points)
             mst, all = kruskal(edges, len(points))
-            mst = addBack(mst, all, 0.08)  # Add back 15% of the edges
+            mst = addBack(mst, all, 0.09)  # Add back 15% of the edges
             rooms_finalized = True
+    
+    
 
     # Draw Dungeon and MST
     printDungeon(new_array, dungeon_array)
     if rooms_finalized:
-        drawMST(screen, points, mst)
+        #drawMST(screen, points, mst)
+        addHalls(mst, new_array)
+        reAddCollidingRooms(dungeon_array, hallways, new_array)
 
     
     #pygame.draw.rect(screen, 'red', pygame.Rect(500, 500 ,  50, 50)) 
