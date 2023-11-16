@@ -13,13 +13,13 @@ centerx = screen.get_width() / 2
 centery = screen.get_height() / 2
 
 #generation variables
-tilesize = 4
-mean = 40
-stdev = 30
-room_count = 90
+tilesize = 5
+mean = 30
+stdev = 90
+room_count = 50
 radius = 30
-dungeon_height = 800 
-dungeon_width = 800
+dungeon_height = 600 
+dungeon_width = 600
 
 #Main Game Loop
 running = True
@@ -316,7 +316,7 @@ while running:
         reAddCollidingRooms(dungeon_array, hallways, new_array)
 
     
-    #pygame.draw.rect(screen, 'red', pygame.Rect(500, 500 ,  50, 50)) 
+    pygame.draw.rect(screen, 'red', pygame.Rect(player_pos.x, player_pos.y ,  5, 5)) 
 
     #Screen Refresh
     pygame.display.flip()
