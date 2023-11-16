@@ -2,13 +2,14 @@ import pygame
 import sys
 import numpy as np
 from scipy.spatial import Delaunay
+import time
 
 #Initialize Pygame
 pygame.init()
 
 #Screen Setup
 screen = pygame.display.set_mode((1000, 1000))
-player_pos = pygame.Vector2(screen.get_width() / 2, screen.get_height() /2 )
+
 centerx = screen.get_width() / 2
 centery = screen.get_height() / 2
 
@@ -70,8 +71,13 @@ def printDungeon(dungeonArray, allArray):
         pygame.draw.rect(screen, 'blue', pygame.Rect(room[0], room[1], room[2], room[3]))
 
 def moveRooms(room_array, room_mean):
+    start_time = time.time()
     any_room_moved = False
-    for i, room in enumerate(room_array): 
+    for i, room in enumerate(room_array):
+        # Check if time limit exceeded
+        if time.time() - start_time > 2:  # 2 seconds limit
+            return False, True
+         
         room_rect = pygame.Rect(room[0], room[1], room[2], room[3])
         
         for j, other_room in enumerate(room_array):
@@ -100,7 +106,7 @@ def moveRooms(room_array, room_mean):
         room[0] = max(150, min(room[0], dungeon_width - room[2] + 100))
         room[1] = max(150, min(room[1],  dungeon_height - room[3] + 100))
 
-    return any_room_moved
+    return any_room_moved, False
 
 def reduceDungeon(room_array, room_mean):
     for room in room_array:
@@ -229,20 +235,20 @@ def addHalls(mst, dungeon):
             hallway2 = {'start': (x_center2, y_center2), 'end': (x_center2, y_center1), 'width': 10}
             hallways.append(hallway1)
             hallways.append(hallway2)
-            pygame.draw.line(screen, 'blue', hallway1['start'], hallway1['end'], hallway1['width'])
-            pygame.draw.line(screen, 'blue', hallway2['start'], hallway2['end'], hallway2['width'])
+            new_array.append(pygame.draw.line(screen, 'blue', hallway1['start'], hallway1['end'], hallway1['width']))
+            new_array.append(pygame.draw.line(screen, 'blue', hallway2['start'], hallway2['end'], hallway2['width']))
         if (abs(x_center1 - x_center2) >= mean and abs(x_center1 - x_center2) < 200):
             hallway1 = {'start': (x_center1, y_center1), 'end': (x_center2, y_center1), 'width': 10}
             hallway2 = {'start': (x_center2, y_center2), 'end': (x_center1, y_center2), 'width': 10}
             hallways.append(hallway1)
             hallways.append(hallway2)
-            pygame.draw.line(screen, 'blue', hallway1['start'], hallway1['end'], hallway1['width'])
-            pygame.draw.line(screen, 'blue', hallway2['start'], hallway2['end'], hallway2['width'])
+            new_array.append(pygame.draw.line(screen, 'blue', hallway1['start'], hallway1['end'], hallway1['width']))
+            new_array.append(pygame.draw.line(screen, 'blue', hallway2['start'], hallway2['end'], hallway2['width']))
         if(abs(x_center1 - x_center2) <= mean) or (abs(y_center1 - y_center2) >= mean):
             hallway = {'start': (x_center1, y_center1), 'end': (x_center1, y_center2), 'width': 10}
             hallway = {'start': (x_center2, y_center2), 'end': (x_center2, y_center1), 'width': 10}
             hallways.append(hallway)
-            pygame.draw.line(screen, 'blue', hallway['start'], hallway['end'], hallway['width'])
+            new_array.append(pygame.draw.line(screen, 'blue', hallway['start'], hallway['end'], hallway['width']))
 
 def reAddCollidingRooms(all_rooms, hallways, dungeon_array):
     for room in all_rooms:
@@ -266,6 +272,7 @@ def drawMST(screen, points, mst):
 
 generateDungeon(radius, mean, stdev, room_count)
 rooms_finalized = False
+player_init = False
 mst = []
 points = []
 
@@ -275,36 +282,44 @@ while running:
             running = False
 
     #Game Logic
-    pygame.draw.circle(screen, "red", player_pos, 40)
     
     
 
-    def move_char(axis, dir):
-        delta = 1
-        if dir == 1:
-            axis += delta
-        elif dir == 0:
-            axis -= delta
-        return axis
+    def move_char(axis, delta):
+        return axis + delta
+    
+    def try_move_player(player_pos, x_delta, y_delta, rooms):
+        new_pos = pygame.Vector2(move_char(player_pos.x, x_delta),
+                             move_char(player_pos.y, y_delta))
+        new_rect = pygame.Rect(new_pos.x, new_pos.y, 5, 5)
+        if is_within_dungeon(new_rect, rooms):
+            return new_pos
+        return player_pos
+    
+    def is_within_dungeon(player_rect, rooms):
+        # Check if inside any room
+        for room in rooms:
+            if room.colliderect(player_rect):
+                return True
 
-    keys = pygame.key.get_pressed()
-    if keys[pygame.K_LEFT]:
-        player_pos.x = move_char(player_pos.x, 0)
-    elif keys[pygame.K_RIGHT]:
-        player_pos.x = move_char(player_pos.x, 1)
-    elif keys[pygame.K_UP]:
-        player_pos.y = move_char(player_pos.y, 0)
-    elif keys[pygame.K_DOWN]:
-        player_pos.y = move_char(player_pos.y, 1)
+        
+        return False    
 
     if not rooms_finalized:
-        if not moveRooms(dungeon_array, mean):
-            # Perform triangulation and compute MST once rooms are finalized
-            points, tris = triangulateDungeon(dungeon_array)
-            edges = createGraph(tris, points)
-            mst, all = kruskal(edges, len(points))
-            mst = addBack(mst, all, 0.09)  # Add back 15% of the edges
-            rooms_finalized = True
+            room_moved, aborted = moveRooms(dungeon_array, mean)
+
+            if aborted:
+                # Restart dungeon generation
+                dungeon_array.clear()
+                new_array.clear()
+                generateDungeon(radius, mean, stdev, room_count)
+            elif not room_moved:
+                # Perform triangulation and compute MST once rooms are finalized
+                points, tris = triangulateDungeon(dungeon_array)
+                edges = createGraph(tris, points)
+                mst, all = kruskal(edges, len(points))
+                mst = addBack(mst, all, 0.09)  # Add back a percentage of the edges
+                rooms_finalized = True
     
     
 
@@ -314,9 +329,16 @@ while running:
         #drawMST(screen, points, mst)
         addHalls(mst, new_array)
         reAddCollidingRooms(dungeon_array, hallways, new_array)
-
+        if player_init == False:
+            player_pos = pygame.Vector2(new_array[0][0], new_array[0][1] )
+            player_init = True 
+    if player_init == True:
+        keys = pygame.key.get_pressed()
+        x_delta = keys[pygame.K_RIGHT] - keys[pygame.K_LEFT]
+        y_delta = keys[pygame.K_DOWN] - keys[pygame.K_UP]
+        player_pos = try_move_player(player_pos, x_delta, y_delta, new_array)
+        player = pygame.draw.rect(screen, 'red', pygame.Rect(player_pos.x, player_pos.y ,  5, 5))
     
-    pygame.draw.rect(screen, 'red', pygame.Rect(player_pos.x, player_pos.y ,  5, 5)) 
 
     #Screen Refresh
     pygame.display.flip()
