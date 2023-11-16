@@ -16,11 +16,11 @@ centery = screen.get_height() / 2
 #generation variables
 tilesize = 5
 mean = 30
-stdev = 90
-room_count = 50
+stdev = 100
+room_count = 60
 radius = 30
-dungeon_height = 600 
-dungeon_width = 600
+dungeon_height = 800 
+dungeon_width = 800
 
 #Main Game Loop
 running = True
@@ -65,8 +65,9 @@ def generateDungeon(radius, room_mean, room_std, room_count):
 def printDungeon(dungeonArray, allArray):
     moveRooms(dungeon_array, mean)  
     screen.fill((0, 0, 0))  # Clear screen
-    #for room in allArray:
-        #pygame.draw.rect(screen, 'yellow', pygame.Rect(room[0], room[1], room[2], room[3]))
+    
+    """ for room in allArray:
+        pygame.draw.rect(screen, 'yellow', pygame.Rect(room[0], room[1], room[2], room[3])) """
     for room in dungeonArray:
         pygame.draw.rect(screen, 'blue', pygame.Rect(room[0], room[1], room[2], room[3]))
 
@@ -92,6 +93,7 @@ def moveRooms(room_array, room_mean):
                     # Adjust position to resolve overlap
                     if room_rect.x < other_rect.x:
                         room[0] -= move_x
+                        
                     else:
                         room[0] += move_x
 
@@ -238,7 +240,7 @@ def addHalls(mst, dungeon):
             new_array.append(pygame.draw.line(screen, 'blue', hallway1['start'], hallway1['end'], hallway1['width']))
             new_array.append(pygame.draw.line(screen, 'blue', hallway2['start'], hallway2['end'], hallway2['width']))
         if (abs(x_center1 - x_center2) >= mean and abs(x_center1 - x_center2) < 200):
-            hallway1 = {'start': (x_center1, y_center1), 'end': (x_center2, y_center1), 'width': 10}
+            hallway1 = {'start': (x_center1, y_center1), 'end': (x_center2 , y_center1), 'width': 10}
             hallway2 = {'start': (x_center2, y_center2), 'end': (x_center1, y_center2), 'width': 10}
             hallways.append(hallway1)
             hallways.append(hallway2)
@@ -286,7 +288,7 @@ while running:
     
 
     def move_char(axis, delta):
-        return axis + delta
+        return axis + delta * 1.2
     
     def try_move_player(player_pos, x_delta, y_delta, rooms):
         new_pos = pygame.Vector2(move_char(player_pos.x, x_delta),
@@ -299,10 +301,8 @@ while running:
     def is_within_dungeon(player_rect, rooms):
         # Check if inside any room
         for room in rooms:
-            if room.colliderect(player_rect):
+            if room.clip(player_rect)[2] == 5 and room.clip(player_rect)[3] == 5:
                 return True
-
-        
         return False    
 
     if not rooms_finalized:
