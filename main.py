@@ -17,11 +17,10 @@ centery = screen.get_height() / 2
 tilesize = 5
 mean = 30
 stdev = 100
-room_count = 60
-radius = 30
-dungeon_height = 800 
-dungeon_width = 800
-
+room_count = 50
+radius = 40
+dungeon_height = 1000 
+dungeon_width = 1000
 #Main Game Loop
 running = True
 clock = pygame.time.Clock()
@@ -66,18 +65,21 @@ def printDungeon(dungeonArray, allArray):
     moveRooms(dungeon_array, mean)  
     screen.fill((0, 0, 0))  # Clear screen
     
-    """ for room in allArray:
-        pygame.draw.rect(screen, 'yellow', pygame.Rect(room[0], room[1], room[2], room[3])) """
     for room in dungeonArray:
         pygame.draw.rect(screen, 'blue', pygame.Rect(room[0], room[1], room[2], room[3]))
 
 def moveRooms(room_array, room_mean):
     start_time = time.time()
     any_room_moved = False
+    aborted = False
+
+    # Example loop structure - replace with your actual room moving logic
     for i, room in enumerate(room_array):
-        # Check if time limit exceeded
-        if time.time() - start_time > 2:  # 2 seconds limit
-            return False, True
+        # Check if 2 seconds have elapsed
+        if time.time() - start_time > 2:
+            aborted = True
+            print("Aborting room movement due to timeout")
+            break
          
         room_rect = pygame.Rect(room[0], room[1], room[2], room[3])
         
@@ -108,7 +110,7 @@ def moveRooms(room_array, room_mean):
         room[0] = max(150, min(room[0], dungeon_width - room[2] + 100))
         room[1] = max(150, min(room[1],  dungeon_height - room[3] + 100))
 
-    return any_room_moved, False
+    return any_room_moved, aborted
 
 def reduceDungeon(room_array, room_mean):
     for room in room_array:
@@ -231,22 +233,24 @@ def addHalls(mst, dungeon):
                                 dungeon[room1][1] + dungeon[room1][3] // 2)
         x_center2, y_center2 = (dungeon[room2][0] + dungeon[room2][2] // 2, 
                                 dungeon[room2][1] + dungeon[room2][3] // 2)
+        
         # Draw line between centers
-        if(abs(y_center1 - y_center2) >= mean and abs(y_center1 - y_center2) < 200):
-            hallway1 = {'start': (x_center1, y_center1), 'end': (x_center1, y_center2), 'width': 10}
-            hallway2 = {'start': (x_center2, y_center2), 'end': (x_center2, y_center1), 'width': 10}
+         # Decide on the intermediate point based on the layout
+        if abs(x_center1 - x_center2) > mean and abs(y_center1 - y_center2) > mean:
+            # Rooms are diagonally aligned, create an L-shaped hallway
+            intermediate_point = (x_center2, y_center1)
+            if (x_center1 > x_center2):
+                hallway1 = {'start': (x_center1, y_center1), 'end': (intermediate_point[0]-2.5, intermediate_point[1]), 'width': 10}
+                hallway2 = {'start': (x_center2, y_center2), 'end': (intermediate_point[0], intermediate_point[1]-2.5), 'width': 10}
+            else:
+                hallway1 = {'start': (x_center1, y_center1), 'end': (intermediate_point[0]+2.5, intermediate_point[1]), 'width': 10}
+                hallway2 = {'start': (x_center2, y_center2), 'end': (intermediate_point[0], intermediate_point[1]+2.5), 'width': 10}
             hallways.append(hallway1)
             hallways.append(hallway2)
             new_array.append(pygame.draw.line(screen, 'blue', hallway1['start'], hallway1['end'], hallway1['width']))
             new_array.append(pygame.draw.line(screen, 'blue', hallway2['start'], hallway2['end'], hallway2['width']))
-        if (abs(x_center1 - x_center2) >= mean and abs(x_center1 - x_center2) < 200):
-            hallway1 = {'start': (x_center1, y_center1), 'end': (x_center2 , y_center1), 'width': 10}
-            hallway2 = {'start': (x_center2, y_center2), 'end': (x_center1, y_center2), 'width': 10}
-            hallways.append(hallway1)
-            hallways.append(hallway2)
-            new_array.append(pygame.draw.line(screen, 'blue', hallway1['start'], hallway1['end'], hallway1['width']))
-            new_array.append(pygame.draw.line(screen, 'blue', hallway2['start'], hallway2['end'], hallway2['width']))
-        if(abs(x_center1 - x_center2) <= mean) or (abs(y_center1 - y_center2) >= mean):
+
+        else:
             hallway = {'start': (x_center1, y_center1), 'end': (x_center1, y_center2), 'width': 10}
             hallway = {'start': (x_center2, y_center2), 'end': (x_center2, y_center1), 'width': 10}
             hallways.append(hallway)
@@ -299,11 +303,12 @@ while running:
         return player_pos
     
     def is_within_dungeon(player_rect, rooms):
-        # Check if inside any room
+        # Check if the player is inside any room or hallway
         for room in rooms:
-            if room.clip(player_rect)[2] == 5 and room.clip(player_rect)[3] == 5:
+            if player_rect.colliderect(room):
                 return True
-        return False    
+        return False
+   
 
     if not rooms_finalized:
             room_moved, aborted = moveRooms(dungeon_array, mean)
